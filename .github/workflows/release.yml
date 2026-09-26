@@ -39,7 +39,7 @@ jobs:
 
         # 模组独有的一步，从贴图生成方块列表
       - name: Generate Block List
-        run: .\gradlew :genBlockList:generateDefaultBlockIds
+        run: ./gradlew :genBlockList:generateDefaultBlockIds
 
       # datagen的内容不会被提交
       - name: Run datagen
