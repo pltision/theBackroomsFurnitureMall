@@ -1,0 +1,74 @@
+name: Release
+
+# 推 tag 时发布：tag 名就是模组版本号，不带 "v" 前缀。
+# 例如 `git tag 0.1 && git push origin 0.1` 会发布版本 0.1。
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      # tag 名直接当版本号（不加 "v" 前缀）。
+      # 顺手挡一下明显写错的 tag：Minecraft / NeoForge 的版本号只吃数字和点，
+      # 出现 "v0.1" 或者乱七八糟的东西时早点失败，比发布出一个版本号诡异的 jar 好。
+      - name: Validate version
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          echo "tag = $VERSION"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*$'; then
+            echo "::error::tag '$VERSION' 不是合法的版本号，应该只由数字和点组成（例如 0.1 或 1.2.3），不要加 'v' 前缀。"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        id: version
+
+      # 为什么发布前要跑一次 runData：
+      #   src/generated/resources（blockstate / 模型 / 语言文件）是 datagen 产物，
+      #   如果它没有被提交进仓库，只跑 build 会因为缺模型资源而产出一个不完整的 jar。
+      #   这里显式重新生成一遍，保证"从仓库当前状态出发能产出完整资源"。
+      #   runData 会顺带先跑 genBlockList（生成默认方块列表）与 syncBlockTextures（贴图镜像），
+      #   它们的依赖关系都写在 build.gradle 里。
+      - name: Run datagen
+        run: ./gradlew runData --no-daemon --stacktrace
+
+      - name: Build
+        run: ./gradlew build --no-daemon --stacktrace -PreleaseVersion=${GITHUB_REF_NAME}
+
+      # data run 会往 src/generated/resources 写文件（它们本来就该被提交）。
+      # 如果生成结果和仓库里的不一致，说明有人忘了提交 datagen 产物，这里提醒一下，
+      # 但不让发布失败——jar 本身已经是完整的。
+      - name: Warn if generated resources are stale
+        if: always()
+        run: |
+          if ! git diff --quiet -- src/generated; then
+            echo "::warning::src/generated/resources 与仓库里的版本不一致，记得重新跑 runData 并提交生成物。"
+            git --no-pager diff --stat -- src/generated
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/*.jar
+          generate_release_notes: true

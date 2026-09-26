@@ -1,0 +1,54 @@
+name: CI
+
+# 平时提交的构建检查。发布走 release.yml（推 tag 触发）。
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      # runData 单独跑一次，是为了把"datagen 能不能过"也纳入 CI：
+      # 典型的坑是贴图被删了但 config/brfurniture/blocks.txt 里还留着那一行，
+      # 这时 build 不会报错（src/generated 里是提交好的旧产物），只有跑 datagen 才会暴露。
+      # 它依赖的 genBlockList 生成任务与 syncBlockTextures 贴图镜像都会自动先执行。
+      - name: Run datagen
+        run: ./gradlew runData --no-daemon --stacktrace
+
+      - name: Build
+        run: ./gradlew build --no-daemon --stacktrace
+
+      # data run 会往 src/generated/resources 写文件（它们本来就该被提交）。
+      # 生成结果和仓库不一致 = 有人忘了提交 datagen 产物，提醒一下。
+      - name: Warn if generated resources are stale
+        if: always()
+        run: |
+          if ! git diff --quiet -- src/generated; then
+            echo "::warning::src/generated/resources 与仓库里的版本不一致，记得重新跑 runData 并提交生成物。"
+            git --no-pager diff --stat -- src/generated
+          fi
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: brfurniture-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
