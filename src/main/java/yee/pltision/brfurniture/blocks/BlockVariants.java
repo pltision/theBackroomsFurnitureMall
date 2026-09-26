@@ -58,4 +58,20 @@ public enum BlockVariants {
     public String blockPath(String basePath) {
         return namespaceSegment == null ? basePath : namespaceSegment + "/" + basePath;
     }
+
+    /**
+     * {@return 这个基础 id 用到的贴图路径}，形如 {@code block/level0_wall}，
+     * 在模组里对应 {@code assets/<modid>/textures/block/level0_wall.png}。
+     *
+     * <p>所有形态共用同一张贴图：实心方块六面直接贴它，展墙靠模板模型换贴图槽。
+     * 所以这里与形态无关。</p>
+     *
+     * <p>注意路径里<b>只有一层</b> {@code block/}。贴图在源码里按内容分组放在
+     * {@code textures/block/block/}（见 build.gradle 的 syncBlockTextures），
+     * 但 Minecraft 解析 {@code brfurniture:block/xxx} 时只会找
+     * {@code textures/block/xxx.png}，多一层就找不到。</p>
+     */
+    public static String texturePath(String basePath) {
+        return "block/" + basePath;
+    }
 }
