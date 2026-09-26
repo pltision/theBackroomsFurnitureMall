@@ -65,7 +65,7 @@ var syncBlockTextures = tasks.register('syncBlockTextures', Sync) {
     includeEmptyDirs = false
 
     // 源目录不存在时不要报错（例如只改了 Java 代码、贴图目录被临时移走）。
-    onlyIf { file('src/main/resources/assets/brfurniture/textures/block/block').isDirectory() }
+//    onlyIf { file('src/main/resources/assets/brfurniture/textures/block/block').isDirectory() }
 }
 
 // ---------------------------------------------------------------------------
