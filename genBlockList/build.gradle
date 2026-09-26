@@ -1,0 +1,40 @@
+// genBlockList：不依赖 Minecraft / NeoForge 的独立代码生成模块。
+//
+// 它只做一件事：读取贴图目录与人工维护的展示名表，写出 codegen 源集里的
+// DefaultBlockIds.java。之所以放在这里而不是 datagen，是因为 generated 模块
+// 在每次 runData 时都会被清空，而 DefaultBlockIds 是"默认配置"级别的输入。
+plugins {
+    id 'java'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// 生成物落在根项目的 codegen 源集里（该目录被 src/codegen/.gitignore 忽略）。
+def generatedIdsDir = rootProject.layout.projectDirectory.dir('src/codegen/java')
+def textureDir = rootProject.layout.projectDirectory.dir('src/main/resources/assets/brfurniture/textures/block')
+def displayNameFile = rootProject.layout.projectDirectory.file('src/codegen/block_names.properties')
+
+tasks.register('generateDefaultBlockIds', JavaExec) {
+    group = 'brfurniture'
+    description = '扫描方块贴图，生成 src/codegen/java/.../codegen/DefaultBlockIds.java'
+
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'yee.pltision.brfurniture.genblocklist.GenerateDefaultBlockIds'
+
+    inputs.dir(textureDir).withPropertyName('blockTextures')
+    inputs.file(displayNameFile).withPropertyName('displayNames')
+    outputs.dir(generatedIdsDir).withPropertyName('generatedIds')
+
+    args = [
+            '--textures', textureDir.asFile.absolutePath,
+            '--output', generatedIdsDir.asFile.absolutePath,
+            '--display-names', displayNameFile.asFile.absolutePath,
+            '--package', 'yee.pltision.brfurniture.codegen',
+    ]
+
+    // 只要贴图或名称表变了就必须重新跑，所以不能把 up-to-date 判断交给 args 里的绝对路径。
+    doFirst {
+        logger.lifecycle("[genBlockList] 扫描贴图目录: ${textureDir.asFile}")
+    }
+}

@@ -39,14 +39,19 @@ displayName="${mod_name}" #mandatory
 #logoFile="examplemod.png" #optional
 
 # A text field displayed in the mod UI
-#credits="" #optional
+credits="缩写 BrFM。方块由贴图自动生成：genBlockList 扫描贴图生成默认方块列表，运行时可用 config/brfurniture/blocks.txt 覆盖。"
 
 # The authors of the mod, displayed in the mod UI (optional)
 #authors=""
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Example mod description.
+后室家具店 the Backrooms Furniture Mall —— 只添加方块与家具等资产，不添加机制。
+
+当前为方块阶段：把 assets/brfurniture/textures/block 下的每个贴图注册成一组方块
+（实心方块、展墙、展墙墙根），模型与语言文件由 datagen 生成。
+
+Backrooms Furniture only adds blocks and furniture assets, no gameplay mechanics.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.
