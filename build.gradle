@@ -64,8 +64,9 @@ var syncBlockTextures = tasks.register('syncBlockTextures', Sync) {
     // 不保留空的中间目录，镜像目录里只该有真正的贴图。
     includeEmptyDirs = false
 
-    // 源目录不存在时不要报错（例如只改了 Java 代码、贴图目录被临时移走）。
-//    onlyIf { file('src/main/resources/assets/brfurniture/textures/block/block').isDirectory() }
+    // 刻意不加 onlyIf 保护：贴图源目录是必需输入，不存在时就应该失败。
+    // 而且即使这里跳过，:genBlockList:generateDefaultBlockIds 也会因为
+    // inputs.dir 不存在而在配置阶段报出来（更早、信息更明确）。
 }
 
 // ---------------------------------------------------------------------------

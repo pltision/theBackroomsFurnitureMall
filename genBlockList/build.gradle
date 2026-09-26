@@ -11,11 +11,19 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 // 生成物落在根项目的 codegen 源集里（该目录被 src/codegen/.gitignore 忽略）。
 def generatedIdsDir = rootProject.layout.projectDirectory.dir('src/codegen/java')
-// 只扫"会自动生成方块"的那一层：textures/block/block/*.png。
-// textures/block/ 下还有 exhibition_wall/、normal/、level0/、pipes/、can/ 这些手写贴图
-// （家具与其它内容预留），生成器只取直接子文件，所以扫这一层天然把它们排除了。
+// 递归扫描 textures/block/block/ 这棵子树，相对路径（去掉 .png）就是方块 id。
+// 放在 textures/block/ 下是为了按内容分组，而 textures/block/ 里还有
+// exhibition_wall/、normal/、level0/、pipes/、can/ 这些手写贴图，所以只扫 block/ 这一棵。
 def textureDir = rootProject.layout.projectDirectory.dir('src/main/resources/assets/brfurniture/textures/block/block')
-def displayNameFile = rootProject.layout.projectDirectory.file('src/codegen/block_names.properties')
+
+// 展示名表（<方块id>=<中文>|<English>）分两层，和 config/brfurniture/blocks.txt 覆盖方块列表同一个思路：
+//   1. 内置默认表：src/main/resources/.../block_names.properties —— 它是资源文件，会打进 jar；
+//   2. 覆盖表：config/brfurniture/block_names.properties —— 存在时优先用它。
+// 两个文件都是**可选**的：都没有时生成器会按 id 自动推导名字（level0_bricks -> "Level0 Bricks"）。
+def displayNameFile = rootProject.layout.projectDirectory.file('src/main/resources/assets/brfurniture/block_names.properties')
+def displayNameOverrideFile = rootProject.layout.projectDirectory.file('config/brfurniture/block_names.properties')
+def hasDisplayNameFile = displayNameFile.asFile.isFile()
+def hasDisplayNameOverride = displayNameOverrideFile.asFile.isFile()
 
 tasks.register('generateDefaultBlockIds', JavaExec) {
     group = 'brfurniture'
@@ -25,19 +33,40 @@ tasks.register('generateDefaultBlockIds', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'yee.pltision.brfurniture.genblocklist.GenerateDefaultBlockIds'
 
+    // 贴图目录是必需输入：没有它什么都生成不出来，让 Gradle 在配置阶段直接报出来。
     inputs.dir(textureDir).withPropertyName('blockTextures')
-    inputs.file(displayNameFile).withPropertyName('displayNames')
     outputs.dir(generatedIdsDir).withPropertyName('generatedIds')
+
+    // 展示名表是可选输入，所以只在文件真的存在时才登记。
+    // 不能无条件 inputs.file(...)：Gradle 在**配置阶段**就会校验，文件不在时直接抛
+    // "input file does not exist" 把整个构建挂掉（onlyIf 拦不住，它求值更晚）。
+    if (hasDisplayNameFile) {
+        inputs.file(displayNameFile).withPropertyName('displayNames')
+    }
+    if (hasDisplayNameOverride) {
+        inputs.file(displayNameOverrideFile).withPropertyName('displayNamesOverride')
+    }
 
     args = [
             '--textures', textureDir.asFile.absolutePath,
             '--output', generatedIdsDir.asFile.absolutePath,
-            '--display-names', displayNameFile.asFile.absolutePath,
             '--package', 'yee.pltision.brfurniture.codegen',
     ]
+    if (hasDisplayNameFile) {
+        args += ['--display-names', displayNameFile.asFile.absolutePath]
+    }
+    // 覆盖表总是传过去：生成器自己判断"存在才用"，不存在就退回内置表。
+    // 路径要相对工程根目录，因为 JavaExec 的工作目录是 genBlockList/。
+    args += ['--display-names-override', displayNameOverrideFile.asFile.absolutePath]
 
-    // 只要贴图或名称表变了就必须重新跑，所以不能把 up-to-date 判断交给 args 里的绝对路径。
     doFirst {
         logger.lifecycle("[genBlockList] 扫描贴图目录: ${textureDir.asFile}")
+        if (hasDisplayNameOverride) {
+            logger.lifecycle("[genBlockList] 展示名表: ${displayNameOverrideFile.asFile}（覆盖内置表）")
+        } else if (hasDisplayNameFile) {
+            logger.lifecycle("[genBlockList] 展示名表: ${displayNameFile.asFile}")
+        }
+        // 两个都没有时不在这里重复打印：生成器自己会说明"全部按 id 推导"。
+        // 这是合法状态，所以也不该 warn。
     }
 }
