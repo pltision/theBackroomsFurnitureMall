@@ -1,11 +1,11 @@
 package yee.pltision.brfurniture.blocks;
 
+import yee.pltision.brfurniture.codegen.DefaultBlockIds;
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import yee.pltision.brfurniture.codegen.DefaultBlockIds;
 
 /**
  * 方块展示名的"基础名"查表 + 推导。

@@ -1,5 +1,11 @@
 package yee.pltision.brfurniture.blocks;
 
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModLoadingIssue;
+import org.slf4j.Logger;
+import yee.pltision.brfurniture.BrFurniture;
+import yee.pltision.brfurniture.codegen.DefaultBlockIds;
+
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -12,14 +18,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import org.slf4j.Logger;
-
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.neoforged.fml.ModLoadingIssue;
-import yee.pltision.brfurniture.BrFurniture;
-import yee.pltision.brfurniture.codegen.DefaultBlockIds;
 
 /**
  * 读取 / 创建 {@code config/brfurniture/blocks.txt}。

@@ -20,15 +20,15 @@ public final class GenerateDefaultBlockIds {
     public static void main(String[] args) throws Exception {
         Arguments arguments = Arguments.parse(args);
         if (arguments.help) {
-            System.out.println("""
+            System.out.printf("""
                     用法: GenerateDefaultBlockIds --textures <贴图目录> --output <java 源码根目录> [选项]
-
+                    
                       --textures <dir>         assets/<modid>/textures/block 目录（只扫描直接子文件）
                       --output <dir>           生成文件的 java 源码根目录，例如 src/codegen/java
                       --display-names <file>   展示名表，格式 <方块id>=<中文>|<English>
                       --package <name>         生成类的包名（默认 %s）
                       --class <name>           生成类的类名（默认 %s）
-                    """.formatted(arguments.packageName, arguments.className));
+                    %n""", arguments.packageName, arguments.className);
             return;
         }
 

@@ -1,8 +1,5 @@
 package yee.pltision.brfurniture.client;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -12,6 +9,9 @@ import net.minecraft.util.Mth;
 import net.neoforged.fml.ModLoadingIssue;
 import yee.pltision.brfurniture.BrFurniture;
 import yee.pltision.brfurniture.blocks.BlockWarning;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * "方块列表有问题"的提示界面。
@@ -83,7 +83,7 @@ public class BlockWarningsScreen extends Screen {
         textAreaHeight = Math.max(ROW_HEIGHT, buttonsTop - 8 - textAreaTop);
         maxScroll = Math.max(0, lines.size() * ROW_HEIGHT - textAreaHeight);
 
-        int buttonWidth = Math.min(160, Math.max(100, (width - 3 * PADDING) / 2));
+        int buttonWidth = Math.clamp((width - 3 * PADDING) / 2, 100, 160);
         int totalWidth = buttonWidth * 2 + PADDING;
         int left = width / 2 - totalWidth / 2;
         addRenderableWidget(Button.builder(Component.translatable("brfurniture.warningscreen.continue"), button -> onClose())

@@ -1,16 +1,5 @@
 package yee.pltision.brfurniture.blocks;
 
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-
-import org.slf4j.Logger;
-
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
@@ -25,7 +14,12 @@ import net.neoforged.fml.ModLoadingIssue;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import org.slf4j.Logger;
 import yee.pltision.brfurniture.BrFurniture;
+
+import java.nio.file.Files;
+import java.util.*;
+import java.util.function.Function;
 
 /**
  * 把「方块列表」变成真正注册的方块。
@@ -191,9 +185,6 @@ public final class BlockManager {
         itemRegister.register(modEventBus);
     }
 
-    /**
-     * 预检：每个形态的注册 id 是否可用。不可用的形态会被排除掉，并记一条警告。
-     */
     /**
      * 预检：每个形态的注册 id 是否可用。不可用的形态会被排除掉，并记警告。
      *

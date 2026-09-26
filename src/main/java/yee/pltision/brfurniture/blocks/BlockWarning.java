@@ -1,8 +1,9 @@
 package yee.pltision.brfurniture.blocks;
 
+import net.neoforged.fml.ModLoadingIssue;
+
 import java.util.List;
 
-import net.neoforged.fml.ModLoadingIssue;
 /**
  * 一条"方块列表有问题"的记录。
  *
