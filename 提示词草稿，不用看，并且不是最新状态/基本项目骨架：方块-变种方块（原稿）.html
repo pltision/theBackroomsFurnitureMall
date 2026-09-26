@@ -32,12 +32,12 @@ BrFurniture
 
 <p>我想要使用贴图来自动生成一系列方块。但是贴图的加载和方块注册的顺序对不上，并且服务端不加载贴图。所以最好使用一种类似配置文件的方法来决定要生成什么方块，因此需要把这部分放到方块列表阶段。</p>
 
-<p>方块列表阶段作为一个独立的模块 <code>genBlockList</code>，不依赖Minecraft和别的东西。</p>
+<p>方块列表阶段作为一个独立的模块 <code>gen_block_list</code>，不依赖Minecraft和别的东西。</p>
 
-<p>方块列表阶段需要获取 <code>.\src\main\resources\assets\brgb\textures\block</code> 里面有什么方块，然后以 <code>level0_wall</code>
+<p>方块列表阶段需要获取 <code>.\src\main\resources\assets\brfurniture\textures\block</code> 里面有什么方块，然后以 <code>level0_wall</code>
     的格式输出到什么地方作为默认的配置文件。同时需要支持在游戏运行时在 <code>config/brfurniture/blocks.txt</code> 覆盖。 </p>
 
-<p>具体把默认配置文件存到哪我确实不太知道。如果 NeoForge 没有推荐的实现方案，那直接生成“硬编码”的代码可能还是最好的方案，可以把文件丢到一个独立的<code>codegen</code>模块而不是generated模块，因为generated模块在运行datagen时会被删除。</p>
+<p>具体把默认配置文件存到哪我确实不太知道。如果 NeoForge 没有推荐的实现方案，那直接生成“硬编码”的代码可能还是最好的方案，可以把文件丢到一个和generated平级的<code>code_generated</code>模块，而不是generated模块，因为generated模块在运行datagen时会被删除。</p>
 
 <p>按照惯例，如果检测到配置文件缺失需要创建一个默认的配置文件。</p>
 
@@ -93,8 +93,6 @@ public class BrFurniture
 
 <p>创造物品栏要把注册好的方块全部送进去，可以参考<code>.\example_code\BackroomsGeneralBlocks.java</code>。</p>
 <p>创造物品栏的图标使用<code>brfurniture:block/level0_wall</code>，如果没有这个物品就使用屏障方块 <code>minecraft:barrier</code>。</p>
-<p>有一个特殊需求，就是每种贴图对应的方块要占满一整行也就是9个格子。比如现在每个贴图只对应 soildBlock, exhibitionWall, exhibitionWallBrace 一共3种方块，那你就在末尾补上6个空气物品来填满整行。如果到时候有10个方块，那就要填充8个空气物品来填满9格。</p>
-
 
 <h3>资源文件生成</h3>
 
@@ -106,9 +104,18 @@ public class BrFurniture
 <h4>语言文件</h4>
 <p>代码参考 <code>.\example_code\ModZhCnLanguageProvider.java</code></p>
 <p>语言文件则使用每种方块的名字，加上变种方块的名字组成。</p>
-<p>方块的名字需要你来帮我填个硬编码，比如"level0_wall"你就分别填写 "Level0墙壁" 和 "Level0 Wall" 。之后就生成 "Level0墙壁", "Level0展墙", "Level0展墙墙根" 三个语言文件。</p>
-<p>对了，英文和中文只是拼词多个空格，数据结构相同，所以应该用继承的方式复用代码。</p>
+<p>方块的名字需要你来帮我填个硬编码，比如"level0_wall"你就分别填写 "Level0墙壁" 和 "Level0 Wall" 。之后就生成 "Level0墙壁", "Level0展墙", "Level0展墙墙根" 三个项目。</p>
+<p>也就是说硬编码一列 {"Level0墙壁"} 的基本名称，再编码一列 {"墙壁", "展墙", "展墙墙根"}，之后两个列表相乘就行了</p>
+<p>对了，英文和中文只是拼词多个空格，数据结构相同。</p>
 
+<h3>流程</h3>
+<p>总的流程就是这样的</p>
+<ol>
+    <li>前置的贴图资源</li>
+    <li>使用 gen_data_list 生成 code_generated</li>
+    <li>运行 runData （使用 main 模块，依赖 code_generated 或者 gen_data_list 生成的方块列表）</li>
+    <li>运行 build 或 runClient （使用 main 模块，依赖 code_generated 和 runData 产生的资源）</li>
+</ol>
 
 <h2>家具</h2>
 <p>家具一般有自己的特性，比如各种灯具包含点亮和熄灭的逻辑。先写好方块再写家具吧。</p>
