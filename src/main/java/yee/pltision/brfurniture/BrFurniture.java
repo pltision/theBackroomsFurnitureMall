@@ -1,12 +1,6 @@
 package yee.pltision.brfurniture;
 
-import java.nio.file.Path;
-import java.util.List;
-
-import org.slf4j.Logger;
-
 import com.mojang.logging.LogUtils;
-
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
@@ -14,11 +8,15 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModLoadingIssue;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
+import org.slf4j.Logger;
 import yee.pltision.brfurniture.blocks.BlockListConfig;
 import yee.pltision.brfurniture.blocks.BlockManager;
 import yee.pltision.brfurniture.blocks.BlockWarning;
 import yee.pltision.brfurniture.blocks.ModCreativeTabs;
 import yee.pltision.brfurniture.datagen.BrDataGenerators;
+
+import java.nio.file.Path;
+import java.util.List;
 
 /**
  * 后室家具店 Backrooms Furniture —— 主类 / 模组入口。

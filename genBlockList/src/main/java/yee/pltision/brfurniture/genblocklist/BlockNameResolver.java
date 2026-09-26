@@ -8,12 +8,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Properties;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -154,12 +149,12 @@ public final class BlockNameResolver {
             if (words.isEmpty()) {
                 continue;
             }
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append(' ');
             }
             builder.append(words);
         }
-        return builder.length() == 0 ? id : builder.toString();
+        return builder.isEmpty() ? id : builder.toString();
     }
 
     /** 推导单段路径（不含斜杠）的英文名。 */
@@ -177,7 +172,7 @@ public final class BlockNameResolver {
             if (word.isEmpty()) {
                 continue;
             }
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append(' ');
             }
             String replacement = WORD_REPLACEMENTS.get(word);
@@ -190,7 +185,7 @@ public final class BlockNameResolver {
 
         // level0 这种"单词里带数字"的写法已经在上面的分词里保留了原样，这里只补回结尾编号。
         if (!index.isEmpty()) {
-            if (builder.length() > 0) {
+            if (!builder.isEmpty()) {
                 builder.append(' ');
             }
             builder.append(index);

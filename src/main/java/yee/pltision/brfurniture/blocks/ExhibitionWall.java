@@ -1,10 +1,6 @@
 package yee.pltision.brfurniture.blocks;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.mojang.serialization.MapCodec;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -16,6 +12,9 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 展墙：贴在墙上的 1/16 厚装饰板，可以朝四个水平方向。

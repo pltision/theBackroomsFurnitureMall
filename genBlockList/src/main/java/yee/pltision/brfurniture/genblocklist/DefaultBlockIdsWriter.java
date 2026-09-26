@@ -96,9 +96,9 @@ public final class DefaultBlockIdsWriter {
         body.append("    );\n\n");
 
         appendNameMap(body, "BASE_NAMES_ZH_CN", "Simplified Chinese base name of every id in {@link #IDS}, without variety suffixes.",
-                ids, names, name -> name.zhCn());
+                ids, names, BlockNameResolver.LocalizedName::zhCn);
         appendNameMap(body, "BASE_NAMES_EN_US", "English base name of every id in {@link #IDS}, without variety suffixes.",
-                ids, names, name -> name.enUs());
+                ids, names, BlockNameResolver.LocalizedName::enUs);
 
         body.append("    private ").append(simpleClassName).append("() {}\n");
         body.append("}\n");
