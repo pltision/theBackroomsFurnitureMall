@@ -54,6 +54,7 @@ public class BrLanguageProvider extends LanguageProvider {
             add("brfurniture.modloadingissue.blocks.registry_conflict", "后室家具店跳过了已被占用的方块 ID：%s（%s 注册表里已有同名条目）");
             add("brfurniture.modloadingissue.blocks.foreign_namespace", "后室家具店跳过了不属于本模组的 ID：%s（命名空间是 %s）");
             add("brfurniture.modloadingissue.blocks.id_too_long", "后室家具店跳过了过长的方块 ID：%s（路径长度 %s，上限 %s）");
+            add("brfurniture.modloadingissue.blocks.texture_missing", "后室家具店跳过了没有贴图的方块 ID：%s（缺少 %s.png）。删掉配置里这一行，或者把贴图补上。");
             add("brfurniture.modloadingissue.blocks.empty", "后室家具店的方块列表配置里没有任何有效行，已回退到内置列表。");
             add("brfurniture.modloadingissue.blocks.too_large", "后室家具店的方块列表配置超过 %s 字节，已忽略其内容并回退到内置列表。");
             add("brfurniture.modloadingissue.blocks.too_many_lines", "后室家具店的方块列表配置超过 %s 行，超出的部分已忽略。");
@@ -79,6 +80,7 @@ public class BrLanguageProvider extends LanguageProvider {
             add("brfurniture.modloadingissue.blocks.registry_conflict", "Backrooms Furniture skipped an already occupied block id: %s (an entry with the same name exists in the %s registry)");
             add("brfurniture.modloadingissue.blocks.foreign_namespace", "Backrooms Furniture skipped an id that belongs to another namespace: %s (namespace is %s, expected brfurniture)");
             add("brfurniture.modloadingissue.blocks.id_too_long", "Backrooms Furniture skipped an overlong block id: %s (path length %s, limit %s)");
+            add("brfurniture.modloadingissue.blocks.texture_missing", "Backrooms Furniture skipped a block id that has no texture: %s (missing %s.png). Remove that line from the config, or add the texture back.");
             add("brfurniture.modloadingissue.blocks.empty", "The block list config of Backrooms Furniture contains no usable line, so the built-in list was used.");
             add("brfurniture.modloadingissue.blocks.too_large", "The block list config of Backrooms Furniture is larger than %s bytes; its content was ignored and the built-in list was used.");
             add("brfurniture.modloadingissue.blocks.too_many_lines", "The block list config of Backrooms Furniture has more than %s lines; the extra lines were ignored.");
@@ -100,8 +102,15 @@ public class BrLanguageProvider extends LanguageProvider {
         for (ModBlockRegistry entry : blocks.registeredBlocks()) {
             for (BlockVariants variant : entry.registeredVariants()) {
                 String path = entry.id(variant).orElseThrow().getPath();
-                // 语言文件中 "/" 会被替换为 "."
-                add("block.brfurniture." + path, BlockDisplayNames.name(entry.path().replace("/","."), variant, zhCn));
+                // 翻译键里的 "/" 必须换成 "."：方块/物品的 descriptionId 由
+                // Util.makeDescriptionId 生成，它内部就是 id.getPath().replace('/', '.')。
+                // 所以注册名 exhibition_wall/level0_wall 对应的键是
+                // block.brfurniture.exhibition_wall.level0_wall。
+                //
+                // 别把 replace 写到 entry.path() 上：那是"基础名查表用的 id"
+                // （例如 level0_wall），本来就没有斜杠，替换了等于没做，
+                // 反而让名称查表拿到一个被污染的字符串。
+                add("block.brfurniture." + path.replace('/', '.'), BlockDisplayNames.name(entry.path(), variant, zhCn));
             }
         }
     }

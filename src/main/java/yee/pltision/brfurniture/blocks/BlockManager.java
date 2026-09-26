@@ -1,5 +1,6 @@
 package yee.pltision.brfurniture.blocks;
 
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +20,7 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.ModLoadingIssue;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -160,13 +162,17 @@ public final class BlockManager {
 
         List<ModBlockRegistry> result = new ArrayList<>(blockList.entries().size());
         for (BlockListEntry entry : blockList.entries()) {
-            // 先检查"名字有没有被占"，被占的形态直接不注册，避免 DeferredRegister 抛异常。
-            List<BlockVariants> allowed = validate(entry);
-            if (allowed.isEmpty()) {
-                logger.warn("[BrFM] 跳过方块 id {}：它所有形态的注册名都不可用", entry.path());
+            // 先检查贴图在不在、名字有没有被占，不合格的形态直接不注册：
+            // 既避免 DeferredRegister 抛异常，也避免 datagen 因为找不到贴图整场失败。
+            Validation validation = validate(entry);
+            if (validation.allowed().isEmpty()) {
+                // 贴图缺失时 validate 已经给出精确原因了，这里不再补一句笼统的。
+                if (!validation.reasonReported()) {
+                    logger.warn("[BrFM] 跳过方块 id {}：它所有形态的注册名都不可用", entry.path());
+                }
                 continue;
             }
-            result.add(create(entry, allowed));
+            result.add(create(entry, validation.allowed()));
         }
         registered = List.copyOf(result);
         logger.info("[BrFM] 已注册 {} 个方块 id，共 {} 个方块",
@@ -188,8 +194,30 @@ public final class BlockManager {
     /**
      * 预检：每个形态的注册 id 是否可用。不可用的形态会被排除掉，并记一条警告。
      */
-    private List<BlockVariants> validate(BlockListEntry entry) {
+    /**
+     * 预检：每个形态的注册 id 是否可用。不可用的形态会被排除掉，并记警告。
+     *
+     * @param allowed        可以注册的形态
+     * @param reasonReported true = 已经给出过精确原因（例如贴图缺失），
+     *                       调用方不必再补一句笼统的"所有形态都不可用"
+     */
+    private record Validation(List<BlockVariants> allowed, boolean reasonReported) {}
+
+    private Validation validate(BlockListEntry entry) {
         List<BlockVariants> allowed = new ArrayList<>(BlockVariants.values().length);
+
+        // 贴图缺失意味着"整个 id 都不可用"，所以在形态循环之前统一查一次，
+        // 同一个 id 只报一条警告。
+        if (!textureExists(entry.path())) {
+            BrFurniture.LOGGER.error("[BrFM] 跳过方块 id {}：贴图 {} 不存在（方块模型六个面都贴这张图）",
+                    entry.path(), BlockVariants.texturePath(entry.path()) + ".png");
+            warnings.add(BlockWarning.create(
+                    ModLoadingIssue.warning("brfurniture.modloadingissue.blocks.texture_missing",
+                            entry.path(), BlockVariants.texturePath(entry.path())),
+                    entry.sourceLine(), entry.lineNumber(), false));
+            return new Validation(List.of(), true);
+        }
+
         for (BlockVariants variant : BlockVariants.values()) {
             ResourceLocation id = entry.id(variant);
 
@@ -215,7 +243,37 @@ public final class BlockManager {
             }
             allowed.add(variant);
         }
-        return allowed;
+        return new Validation(allowed, false);
+    }
+
+    /**
+     * 检查这个 id 的贴图在不在模组资源里。
+     *
+     * <p>为什么要在注册阶段查：方块模型是"六面都贴 {@code brfurniture:block/<id>}"，
+     * 贴图不存在时 datagen 会在注册完所有方块之后才抛
+     * {@code Texture ... does not exist in any known resource pack}，
+     * 错误信息指不到 {@code blocks.txt} 的哪一行，整个 runData 直接失败。
+     * 提前查出来就能给出行号和缺哪个文件，并把它降级成"跳过这个 id"。</p>
+     *
+     * <p>"查不了"和"查到了、不存在"必须区分开：查不了（拿不到模组文件信息、
+     * 或者查找过程抛异常）时返回 {@code true} 并打日志，宁可放过一个坏 id，
+     * 也不能因为环境差异把好方块全跳掉——但一定要留日志，否则保护会静默失效。</p>
+     */
+    private static boolean textureExists(String path) {
+        var modFileInfo = ModList.get().getModFileById(BrFurniture.MODID);
+        if (modFileInfo == null) {
+            BrFurniture.LOGGER.warn("[BrFM] 拿不到模组文件信息，跳过贴图存在性检查（id={}）", path);
+            return true;
+        }
+        try {
+            // findResource 的路径相对模组根目录，所以要带上 assets/<modid>/ 前缀。
+            String resource = "assets/" + BrFurniture.MODID + "/textures/"
+                    + BlockVariants.texturePath(path) + ".png";
+            return Files.isRegularFile(modFileInfo.getFile().findResource(resource));
+        } catch (RuntimeException e) {
+            BrFurniture.LOGGER.warn("[BrFM] 检查贴图 {} 时出错，按存在处理", path, e);
+            return true;
+        }
     }
 
     /** 真正创建方块与方块物品。 */

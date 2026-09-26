@@ -3,6 +3,7 @@ package yee.pltision.brfurniture.datagen;
 import net.minecraft.data.PackOutput;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.client.model.generators.BlockStateProvider;
+import net.neoforged.neoforge.client.model.generators.ConfiguredModel;
 import net.neoforged.neoforge.client.model.generators.ModelFile;
 import net.neoforged.neoforge.common.data.ExistingFileHelper;
 import yee.pltision.brfurniture.BrFurniture;
@@ -25,18 +26,17 @@ import yee.pltision.brfurniture.blocks.ModBlockRegistry;
  * <p>模板原本叫 {@code texture_wall} / {@code texture_wall_root}，已经重命名成
  * {@code exhibition_wall} / {@code exhibition_wall_brace}，所以这里直接用新名字。</p>
  *
- * <h2>关于带斜杠的注册名</h2>
- * <p>展墙的注册名是 {@code exhibition_wall/level0_wall}，所以模型路径也会带一层目录。
- * {@code ModelProvider#extendWithFolder} 只在<b>名字里没有斜杠</b>时才补
- * {@code block/} / {@code item/} 前缀，带斜杠的名字会被当成"已经是完整路径"。
- * 所以这里对展墙显式写 {@code block/<...>} 与 {@code item/<...>}，
- * 生成的引用就是 {@code brfurniture:block/exhibition_wall/level0_wall}，
- * 与 blockstate 里写的完全一致。</p>
+ * <h2>为什么物品模型都显式写 "item/" 前缀</h2>
+ * <p>{@code ModelProvider#extendWithFolder} 只在名字里<b>没有斜杠</b>时才补
+ * {@code block/} / {@code item/} 前缀；带斜杠的名字会被当成"已经是完整路径"。
+ * 方块 id 可以带斜杠（例如 {@code level0/wall}，对应贴图子目录），这时
+ * {@code simpleBlockItem(block, model)} 会把它当成完整路径传给 item provider，
+ * 结果生成到 {@code models/level0/wall.json}，而 blockstate 期望的是
+ * {@code models/item/level0/wall.json} —— 进游戏就会报
+ * {@code Unable to load model: 'brfurniture:item/level0/wall'}。</p>
  *
- * <p>另外不能对带斜杠的名字用 {@code simpleBlockItem}：它按"取模型路径最后一段"来命名物品模型，
- * {@code exhibition_wall/level0_wall} 会退化成 {@code item/level0_wall.json}，和 blockstate
- * 引用的 {@code item/exhibition_wall/level0_wall} 对不上，物品就会变成紫黑方块。
- * 所以这里显式生成物品模型。</p>
+ * <p>所以这里对<b>所有</b>形态都显式写 {@code block/<路径>} 与 {@code item/<路径>}，
+ * 不依赖 provider 的自动补前缀，行为就和 id 里有没有斜杠无关了。</p>
  */
 public class BrBlockStateProvider extends BlockStateProvider {
     private final BlockManager blocks;
@@ -55,22 +55,32 @@ public class BrBlockStateProvider extends BlockStateProvider {
         for (ModBlockRegistry entry : blocks.registeredBlocks()) {
             for (BlockVariants variant : entry.registeredVariants()) {
                 Block block = entry.block(variant).get();
+                String relativePath = variant.blockPath(entry.path());
 
                 switch (variant) {
                     case SOLID -> {
-                        // 实心方块的注册名没有斜杠，BlockModelProvider 会自动补 block/ 前缀。
-                        ModelFile cube = cubeAll(block);
-                        simpleBlock(block, cube);
-                        simpleBlockItem(block, cube);
+                        // 实心方块的模型：六面同一张贴图的 cube。
+                        //
+                        // 这里刻意不用 BlockStateProvider.cubeAll(block)：它内部把"注册路径"直接
+                        // 丢给 models().cubeAll(...)，而 ModelProvider#extendWithFolder 只在名字里
+                        // 没有斜杠时才补 block/ 前缀。id 是 level0/wall 这种带斜杠的时候，
+                        // 模型会被建到 models/level0/wall.json，blockstate 也引用
+                        // brfurniture:level0/wall —— 两边都少了 block/ 这一层，进游戏加载失败。
+                        // 所以模型名一律显式写成 "block/" + 注册路径。
+                        ModelFile cube = models()
+                                .withExistingParent("block/" + relativePath, mcLoc("block/cube_all"))
+                                .texture("all", modLoc("block/" + entry.path()));
+                        getVariantBuilder(block).partialState().setModels(new ConfiguredModel(cube));
+                        // 物品模型同理，显式写 "item/" + 路径，不依赖 provider 自动补前缀。
+                        itemModels().withExistingParent("item/" + relativePath, cube.getLocation());
                     }
                     case EXHIBITION_WALL, EXHIBITION_WALL_BRACE -> {
-                        String relativePath = variant.blockPath(entry.path());
                         ModelFile model = models()
                                 .withExistingParent("block/" + relativePath, modLoc("block/" + variant.modelTemplate()))
                                 .texture("1", modLoc("block/" + entry.path()));
+                        // horizontalBlock 直接吃 ModelFile，按 FACING 生成四个朝向，不受路径影响。
                         horizontalBlock(block, model);
                         // 物品模型和方块模型同名，只是分别落在 models/item 与 models/block 下。
-                        // withExistingParent 只接受 ResourceLocation，所以把模型的 id 取出来当父模型。
                         itemModels().withExistingParent("item/" + relativePath, model.getLocation());
                     }
                 }

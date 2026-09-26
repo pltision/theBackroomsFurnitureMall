@@ -11,7 +11,10 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 // 生成物落在根项目的 codegen 源集里（该目录被 src/codegen/.gitignore 忽略）。
 def generatedIdsDir = rootProject.layout.projectDirectory.dir('src/codegen/java')
-def textureDir = rootProject.layout.projectDirectory.dir('src/main/resources/assets/brfurniture/textures/block')
+// 只扫"会自动生成方块"的那一层：textures/block/block/*.png。
+// textures/block/ 下还有 exhibition_wall/、normal/、level0/、pipes/、can/ 这些手写贴图
+// （家具与其它内容预留），生成器只取直接子文件，所以扫这一层天然把它们排除了。
+def textureDir = rootProject.layout.projectDirectory.dir('src/main/resources/assets/brfurniture/textures/block/block')
 def displayNameFile = rootProject.layout.projectDirectory.file('src/codegen/block_names.properties')
 
 tasks.register('generateDefaultBlockIds', JavaExec) {

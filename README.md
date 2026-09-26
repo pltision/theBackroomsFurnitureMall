@@ -12,7 +12,7 @@ NeoForge 1.21.1 模组，**只添加方块与家具等资产，不添加机制**
 
 ## 一句话原理
 
-**贴图就是方块。** `assets/brfurniture/textures/block/` 下每有一个 `xxx.png`，就自动得到三个方块：
+**贴图就是方块。** `src/main/resources/assets/brfurniture/textures/block/block/` 下每有一个 `xxx.png`，就自动得到三个方块：
 
 | 形态 | 注册 id | 展示名（例） |
 | --- | --- | --- |
@@ -27,7 +27,8 @@ NeoForge 1.21.1 模组，**只添加方块与家具等资产，不添加机制**
 ## 流程
 
 ```
-1. 前置贴图      src/main/resources/assets/brfurniture/textures/block/*.png
+1. 前置贴图      src/main/resources/assets/brfurniture/textures/block/block/*.png
+                          │  构建脚本把它镜像到 build/blockTextures/…/textures/block/（见下）
                           │
 2. 生成方块列表  gradlew :genBlockList:generateDefaultBlockIds
                           │  扫描贴图 + 读 block_names.properties
@@ -35,7 +36,7 @@ NeoForge 1.21.1 模组，**只添加方块与家具等资产，不添加机制**
                 src/codegen/java/.../codegen/DefaultBlockIds.java   （硬编码默认列表，gitignore）
                           │
 3. runData       gradlew runData
-                          │  注册 45 个方块 → 生成 blockstate / 模型 / 语言文件
+                          │  注册每个 id 的三个方块 → 生成 blockstate / 模型 / 语言文件
                           ▼
                 src/generated/resources/**
                           │
@@ -52,6 +53,59 @@ gradlew runData                                 # 生成资源（会自动先刷
 gradlew build                                   # 打包
 gradlew runClient                               # 起客户端
 ```
+
+---
+
+## 贴图放在哪、为什么要镜像一次
+
+**贴图源**只有一份，按内容分组：
+
+```
+src/main/resources/assets/brfurniture/textures/block/
+  block/                            <- 会自动生成三个方块的贴图（生成器扫这一棵子树）
+    concrete.png
+    level0/wall.png                 <- 也可以再分子目录
+  exhibition_wall/wall_plank.png    <- 展墙模板模型用
+  normal/  level0/  pipes/  can/    <- 家具与其它内容预留
+```
+
+多一层 `block/` 是为了"方块 / 未来的家具 / …"分开，跟创造模式页签的分法是同一个思路。
+
+### 递归扫描：目录层级 = 方块 id = 贴图路径
+
+生成器**递归**扫描 `block/` 这棵子树，用"相对路径去掉 `.png`"当方块 id：
+
+```
+block/concrete.png        -> concrete
+block/level0/wall.png     -> level0/wall
+```
+
+这正好对上 Minecraft 的贴图路径规则：注册名 `brfurniture:level0/wall` 引用的贴图就是
+`assets/brfurniture/textures/block/level0/wall.png`。所以"目录层级"和"贴图路径"是同一件事，
+子目录是真正有意义的，不需要额外约定。子目录名同样要满足 Minecraft 的 path 规则
+（小写字母、数字、`_ - . /`），不合法会被报出来并跳过，而不是生成一个注册就会失败的名字。
+
+### 但目录本身 Minecraft 不认，所以要镜像
+
+Minecraft 解析 `brfurniture:block/xxx` 时**只会**去找
+`assets/brfurniture/textures/block/xxx.png` —— 注意这里没有第二层 `block/`。
+`textures/block/block/` 只是源码里的分组，游戏不会读。
+所以构建时做一次路径映射（`build.gradle` 里的 `syncBlockTextures`，**递归**镜像、保留层级）：
+
+```
+源:   src/main/resources/…/textures/block/block/**/*.png
+镜像: build/blockTextures/assets/brfurniture/textures/block/**/*.png     <- 注册成额外资源根
+```
+
+这一个目录同时被两处使用：
+
+- `processResources` 打进 jar → 贴图落在正确的 `assets/brfurniture/textures/block/` 下；
+- `runData` 的 `--existing` → datagen 的模型校验能找到贴图
+  （少了这一项就会报 `Texture ... does not exist in any known resource pack`）。
+
+源文件只有一份，没有需要手工同步的副本。
+
+源文件只有一份，没有需要手工同步的副本。
 
 ---
 
@@ -77,8 +131,18 @@ gradlew runClient                               # 起客户端
 | 文件内部重复 | 保留第一次出现 |
 | 与已有注册名冲突（原版或别的模组占了 block / item 注册表） | 跳过该形态 |
 | id 过长（> 200 字符） | 跳过 |
+| **贴图不存在**（`textures/block/<id>.png` 找不到） | 跳过该 id，并报出缺哪个文件 |
 | 文件读不出来 / 编码坏了 / 超过 1 MiB / 超过 10 万行 | 记警告，退回内置列表 |
 | 文件存在但一行有效内容都没有 | 记警告，退回内置列表（**不覆盖玩家写的文件**） |
+
+> **贴图缺失这一条很重要。** 模型是"六面都贴 `brfurniture:block/<id>`"，
+> 如果配置里留着一个已经没有贴图的 id，datagen 会在注册完之后才抛
+> `Texture ... does not exist in any known resource pack` —— 错误信息指不到是配置文件哪一行，
+> 而且整个 `runData` 直接失败。现在这种情况会被提前拦成一条警告，`runData` 照常通过。
+>
+> 注意 `config/brfurniture/blocks.txt` **一旦存在就不会自动重写**，
+> 所以"删了贴图但没删配置里那一行"是很常见的状态。想按当前贴图重建配置，
+> 删掉 `config/brfurniture/blocks.txt` 再跑一次即可。
 
 > 有个 1.21.1 的坑值得记一笔：`ResourceLocation.isValidPath("")` 返回 **true**
 > （它的实现是个长度 0 的循环），所以 `brfurniture:` 这种"只有冒号"的写法必须自己挡掉，
@@ -92,7 +156,7 @@ gradlew runClient                               # 起客户端
 genBlockList/                        独立代码生成模块（不依赖 MC）
   src/main/java/.../genblocklist/
     GenerateDefaultBlockIds.java     命令行入口（Gradle 任务调用）
-    BlockIdScanner.java              扫描 textures/block/*.png
+    BlockIdScanner.java              递归扫描 textures/block/block/**/*.png，相对路径即方块 id
     BlockNameResolver.java           读展示名表 + 按 id 推导名字
     DefaultBlockIdsWriter.java       写出 DefaultBlockIds.java
 
@@ -110,7 +174,7 @@ src/main/java/yee/pltision/brfurniture/
     BlockManager.java                读配置 → 校验 → DeferredRegister 注册
     ModBlockRegistry.java            一个 id 的全部方块 + 方块物品
     BlockDisplayNames.java           基础名查表 + 推导 + 拼接变种后缀
-    ModCreativeTabs.java             创造物品栏（每贴图一整行 9 格）
+    ModCreativeTabs.java             创造物品栏（方块按每组连续排列）
     ExhibitionWall.java              展墙（1/16 厚、四向）
     ExhibitionWallBrace.java         展墙墙根（继承展墙，只换模型与 codec）
   datagen/
@@ -122,9 +186,15 @@ src/main/java/yee/pltision/brfurniture/
     BlockWarningsScreen.java         方块列表问题警告界面
     BrPlayerNotifier.java            进世界时聊天栏提示一次
 
-src/main/resources/                 手写资源（贴图、展墙模板模型、mods.toml 模板）
-src/generated/resources/            datagen 产物（blockstate / 模型 / 语言文件）
-example_code/                       参考用的旧代码，不参与编译
+src/main/resources/assets/brfurniture/textures/block/
+  block/                             会自动生成三个方块的贴图（递归扫描这棵子树）
+  exhibition_wall/wall_plank.png     展墙模板模型用的贴图
+  normal/ level0/ pipes/ can/        家具与其它内容预留
+src/main/resources/assets/brfurniture/models/block/
+  exhibition_wall*.json              展墙与墙根的模板模型（手写）
+src/generated/resources/             datagen 产物（blockstate / 模型 / 语言文件）
+build/blockTextures/                 贴图镜像目录（构建产物，见上面「贴图放在哪」）
+example_code/                        参考用的旧代码，不参与编译
 ```
 
 ---
@@ -201,6 +271,55 @@ Copy-Item -Recurse -Force "$env:USERPROFILE\.gradle\wrapper" .gradle-home\
 ```
 
 `.gradle-home` 约 3.4 GB，已被 gitignore。
+
+> 上面这套只影响**本地开发**。GitHub Actions 上用的是普通的 `./gradlew`，
+> 让 `gradle/actions/setup-gradle` 正常缓存 `~/.gradle`。
+
+---
+
+## CI / 发布
+
+两个 workflow，都在 `.github/workflows/`：
+
+| 文件 | 触发 | 做什么 |
+| --- | --- | --- |
+| `ci.yml` | push 到 `master`、任何 PR | `runData` → `build`，传一个 jar artifact |
+| `release.yml` | 推任意 tag | 校验 tag 名 → `runData` → `build` → 建 GitHub Release |
+
+**发布流程：tag 名就是版本号，不带 `v` 前缀。**
+
+```bash
+git tag 0.1
+git push origin 0.1
+```
+
+这会发布版本 `0.1`：jar 叫 `brfurniture-0.1.jar`，
+`META-INF/neoforge.mods.toml` 里的 `version` 也是 `0.1`。
+
+实现方式：`build.gradle` 里
+
+```groovy
+version = project.findProperty('releaseVersion') ?: mod_version
+```
+
+发布时 CI 传 `-PreleaseVersion=${GITHUB_REF_NAME}`，平时用 `gradle.properties` 的 `mod_version`。
+`mods.toml` 的模板展开也用 `project.version`，所以 jar 名和模组元数据不会对不上。
+
+`release.yml` 里有一个 `Validate version` 步骤，只接受 `[0-9]+(\.[0-9]+)*`
+（`0.1`、`1.2.3` 可以；`v0.1`、`0.1-beta` 会直接失败）。这是为了早点发现写错的 tag，
+而不是发布一个版本号诡异的 jar。
+
+**为什么两个 workflow 都先跑 `runData`**：`src/generated/resources`
+（blockstate / 模型 / 语言文件）是 datagen 产物。如果它没有被提交进仓库，
+只跑 `build` 会因为缺资源而产出不完整的 jar；显式重跑一遍能保证产物完整。
+顺带也把"datagen 能不能过"纳入了 CI —— 典型的坑是贴图删了但
+`config/brfurniture/blocks.txt` 还留着那一行，这种问题只有跑 datagen 才会暴露。
+
+两个 workflow 都会在收尾时检查 `git diff -- src/generated`，
+如果生成物和仓库不一致就发一条警告（说明有人忘了提交 datagen 产物），但不会让构建失败。
+
+> `runData` 写入的是 `src/generated/resources`（仓库里的那份）。
+> 所以**请把 `src/generated/resources` 提交进仓库**，否则本地拉下来直接 `build` 会缺资源。
 
 ---
 

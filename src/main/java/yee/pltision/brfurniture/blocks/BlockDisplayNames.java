@@ -25,7 +25,12 @@ public final class BlockDisplayNames {
             Map.entry("rubble", "Rubble"),
             Map.entry("chara", "Chair"));
 
-    private static final Pattern TRAILING_INDEX = Pattern.compile("^(.*?)[_-]?(\\d+)$");
+    /**
+     * 结尾是数字的"编号"。{@code (?<=[a-z])} 后顾断言保证编号前面是字母，
+     * 否则 {@code level0} 会被切成 {@code level + 0}，推导出 "Level 0"。
+     * 这个正则必须和 genBlockList 里的 {@code BlockNameResolver#TRAILING_INDEX} 保持一致。
+     */
+    private static final Pattern TRAILING_INDEX = Pattern.compile("^(.*)(?<=[a-z])[_-](\\d+)$");
 
     private BlockDisplayNames() {}
 
@@ -46,19 +51,45 @@ public final class BlockDisplayNames {
         return name != null ? name : deriveEnglish(path);
     }
 
-    /** {@code level0_wall -> Level0 Wall}、{@code cracking_concrete_1 -> Cracking Concrete 1}。 */
+    /**
+     * {@code level0_wall -> Level0 Wall}、{@code cracking_concrete_1 -> Cracking Concrete 1}。
+     *
+     * <p>方块 id 可以带斜杠（对应贴图子目录），按 {@code /} 拆段分别推导再拼起来：
+     * {@code level0/wall -> Level0 Wall}。这与 genBlockList 的 {@code BlockNameResolver#deriveEnglish}
+     * 是同一套规则——这里只是 {@code DefaultBlockIds} 没有该 id 时的兜底，
+     * 两边规则不一致会让"生成的名字"和"运行时的名字"对不上。</p>
+     */
     public static String deriveEnglish(String path) {
         String normalized = path.replace('-', '_').toLowerCase(Locale.ROOT);
 
+        StringBuilder builder = new StringBuilder();
+        for (String segment : normalized.split("/+")) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            String words = deriveSegment(segment);
+            if (words.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(words);
+        }
+        return builder.length() == 0 ? path : builder.toString();
+    }
+
+    /** 推导单段路径（不含斜杠）的英文名。 */
+    private static String deriveSegment(String segment) {
         String index = "";
-        Matcher matcher = TRAILING_INDEX.matcher(normalized);
+        Matcher matcher = TRAILING_INDEX.matcher(segment);
         if (matcher.matches() && !matcher.group(1).isEmpty()) {
-            normalized = matcher.group(1);
+            segment = matcher.group(1);
             index = matcher.group(2);
         }
 
         StringBuilder builder = new StringBuilder();
-        for (String word : normalized.split("_+")) {
+        for (String word : segment.split("_+")) {
             if (word.isEmpty()) {
                 continue;
             }
@@ -70,9 +101,12 @@ public final class BlockDisplayNames {
                     : Character.toUpperCase(word.charAt(0)) + word.substring(1));
         }
         if (!index.isEmpty()) {
-            builder.append(' ').append(index);
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(index);
         }
-        return builder.length() == 0 ? path : builder.toString();
+        return builder.toString();
     }
 
     /**
