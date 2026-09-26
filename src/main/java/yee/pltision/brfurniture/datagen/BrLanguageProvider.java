@@ -100,7 +100,8 @@ public class BrLanguageProvider extends LanguageProvider {
         for (ModBlockRegistry entry : blocks.registeredBlocks()) {
             for (BlockVariants variant : entry.registeredVariants()) {
                 String path = entry.id(variant).orElseThrow().getPath();
-                add("block.brfurniture." + path, BlockDisplayNames.name(entry.path(), variant, zhCn));
+                // 语言文件中 "/" 会被替换为 "."
+                add("block.brfurniture." + path, BlockDisplayNames.name(entry.path().replace("/","."), variant, zhCn));
             }
         }
     }
