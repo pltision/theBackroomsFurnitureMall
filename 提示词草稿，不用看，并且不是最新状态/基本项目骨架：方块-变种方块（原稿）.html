@@ -37,14 +37,15 @@ BrFurniture
 <p>方块列表阶段需要获取 <code>.\src\main\resources\assets\brfurniture\textures\block</code> 里面有什么方块，然后以 <code>level0_wall</code>
     的格式输出到什么地方作为默认的配置文件。同时需要支持在游戏运行时在 <code>config/brfurniture/blocks.txt</code> 覆盖。 </p>
 
-<p>具体把默认配置文件存到哪我确实不太知道。如果 NeoForge 没有推荐的实现方案，那直接生成“硬编码”的代码可能还是最好的方案，可以把文件丢到一个和generated平级的<code>code_generated</code>模块，而不是generated模块，因为generated模块在运行datagen时会被删除。</p>
+<p>具体把默认配置文件存到哪我确实不太知道。如果 NeoForge 没有推荐的实现方案，那直接生成“硬编码”的代码可能还是最好的方案，可以把文件丢到一个和generated平级的<code>code_generated</code>包，而不是generated模块，因为generated模块在运行datagen时会被删除。</p>
 
 <p>按照惯例，如果检测到配置文件缺失需要创建一个默认的配置文件。</p>
 
 <h3>加载配置文件和注册时</h3>
 <p>这部分需要做足防御性编程，加载配置文件是无论如何都不能让游戏崩溃的。</p>
-<p>不过需要检查的东西好像也就 ResouceLocation 能不能创建，有没有重名id（包括内部重复和外部冲突）。还有什么东西可以自己补充一下，因为我也不知道。</p>
-<P>如果有错误，NeoForge 好像有个警告屏幕可以创建。需要提示哪些东西无法读取，哪些id重名，以及提示删除 <code>config/brfurniture/blocks.txt</code> 可能解决问题。</P>
+<p>不过需要检查的东西好像也就 ResourceLocation 能不能创建，有没有重名id（包括内部重复和外部冲突）。还有什么东西可以自己补充一下，因为我也不知道。</p>
+<p>如果有错误，NeoForge 好像有个警告屏幕可以创建。需要提示哪些东西无法读取，哪些id重名，以及提示删除 <code>config/brfurniture/blocks.txt</code> 可能解决问题。</p>
+<p>若当前 NeoForge 版本有可用的警告屏幕 API 则使用；否则写入日志，并在玩家进入世界后通过聊天栏提示一次。不要为了警告屏幕引入不存在的 API。</p>
 
 <h3>注册方块</h3>
 
@@ -87,7 +88,7 @@ public class BrFurniture
 }
 </code></pre>
 
-<p>注册好的方块应该打包成类似 "level0_wall": {soildBlock, exhibitionWall, exhibitionWallBrace} 的 Map + List&lt;BlockItem&gt; 结构，方便待会创造物品栏调用。</p>
+<p>注册好的方块应该打包成类似 "level0_wall": {solidBlock, exhibitionWall, exhibitionWallBrace} 的 Map + List&lt;BlockItem&gt; 结构，方便待会创造物品栏调用。</p>
 
 <h3>创造物品栏：方块</h3>
 
@@ -112,8 +113,8 @@ public class BrFurniture
 <p>总的流程就是这样的</p>
 <ol>
     <li>前置的贴图资源</li>
-    <li>使用 gen_data_list 生成 code_generated</li>
-    <li>运行 runData （使用 main 模块，依赖 code_generated 或者 gen_data_list 生成的方块列表）</li>
+    <li>使用 gen_block_list 生成 code_generated</li>
+    <li>运行 runData （使用 main 模块，依赖 code_generated 或者 gen_block_list 生成的方块列表）</li>
     <li>运行 build 或 runClient （使用 main 模块，依赖 code_generated 和 runData 产生的资源）</li>
 </ol>
 
