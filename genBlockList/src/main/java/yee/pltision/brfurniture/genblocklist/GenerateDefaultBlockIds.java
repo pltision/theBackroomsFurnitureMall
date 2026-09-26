@@ -3,7 +3,6 @@
  */
 package yee.pltision.brfurniture.genblocklist;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,9 +22,12 @@ public final class GenerateDefaultBlockIds {
             System.out.printf("""
                     用法: GenerateDefaultBlockIds --textures <贴图目录> --output <java 源码根目录> [选项]
                     
-                      --textures <dir>         assets/<modid>/textures/block 目录（只扫描直接子文件）
+                      --textures <dir>        方块贴图根目录（递归扫描，相对路径即方块 id）
                       --output <dir>           生成文件的 java 源码根目录，例如 src/codegen/java
-                      --display-names <file>   展示名表，格式 <方块id>=<中文>|<English>
+                      --display-names <file>   展示名表（内置的默认表），格式 <方块id>=<中文>|<English>
+                      --display-names-override <file>
+                                               覆盖用的展示名表。存在时优先于 --display-names，
+                                               用来实现"config 里的文件覆盖内置资源"。
                       --package <name>         生成类的包名（默认 %s）
                       --class <name>           生成类的类名（默认 %s）
                     %n""", arguments.packageName, arguments.className);
@@ -33,7 +35,15 @@ public final class GenerateDefaultBlockIds {
         }
 
         List<String> ids = BlockIdScanner.scan(arguments.textureDir);
-        BlockNameResolver resolver = BlockNameResolver.loadDisplayNames(arguments.displayNamesFile);
+
+        // 内置默认表 + 可选的覆盖表。覆盖表是"在其之上改几个名字"，不是整份替换：
+        // 合并语义见 BlockNameResolver#merge。
+        BlockNameResolver base = BlockNameResolver.loadDisplayNames(arguments.displayNamesFile, false);
+        BlockNameResolver override = BlockNameResolver.loadDisplayNames(arguments.displayNamesOverrideFile, true);
+        BlockNameResolver resolver = BlockNameResolver.merge(base, override);
+        if (!override.explicitNames().isEmpty()) {
+            System.out.println("[genBlockList] config 里的展示名表覆盖了 " + override.explicitNames().size() + " 个 id");
+        }
 
         List<BlockNameResolver.LocalizedName> names = new ArrayList<>(ids.size());
         int derived = 0;
@@ -62,7 +72,10 @@ public final class GenerateDefaultBlockIds {
     private static final class Arguments {
         private Path textureDir;
         private Path outputDir;
+        /** 内置的默认展示名表（src/main/resources 里的那份）。 */
         private Path displayNamesFile;
+        /** 可选：覆盖用的展示名表（config/brfurniture 里的那份）。 */
+        private Path displayNamesOverrideFile;
         private String packageName = "yee.pltision.brfurniture.codegen";
         private String className = DEFAULT_CLASS_NAME;
         private boolean help;
@@ -76,6 +89,7 @@ public final class GenerateDefaultBlockIds {
                     case "--textures" -> arguments.textureDir = Path.of(next(args, ++i, key));
                     case "--output" -> arguments.outputDir = Path.of(next(args, ++i, key));
                     case "--display-names" -> arguments.displayNamesFile = Path.of(next(args, ++i, key));
+                    case "--display-names-override" -> arguments.displayNamesOverrideFile = Path.of(next(args, ++i, key));
                     case "--package" -> arguments.packageName = next(args, ++i, key);
                     case "--class" -> arguments.className = next(args, ++i, key);
                     default -> throw new IllegalArgumentException("未知参数: " + key);
@@ -91,15 +105,14 @@ public final class GenerateDefaultBlockIds {
                 throw new IllegalArgumentException("缺少 --output");
             }
             if (arguments.displayNamesFile == null) {
-                // 缺省时找 --output 旁边常见的两个位置，找不到就当作"没有展示名表"。
-                Path candidate = Path.of("src", "codegen", "block_names.properties");
-                arguments.displayNamesFile = Files.isRegularFile(candidate) ? candidate : null;
+                // 没传就假定是工程里的默认位置；文件在不在交给 loadDisplayNames 判断
+                // （它会把"没有展示名表"当成合法状态：全部按 id 推导）。
+                arguments.displayNamesFile = Path.of("src", "main", "resources", "assets", "brfurniture", "block_names.properties");
             }
             return arguments;
         }
 
-        private static String next(String[] args, int index, String key) {
-            if (index >= args.length) {
+        private static String next(String[] args, int index, String key) {            if (index >= args.length) {
                 throw new IllegalArgumentException(key + " 后面缺少取值");
             }
             return args[index];

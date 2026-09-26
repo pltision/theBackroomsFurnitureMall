@@ -105,7 +105,44 @@ Minecraft 解析 `brfurniture:block/xxx` 时**只会**去找
 
 源文件只有一份，没有需要手工同步的副本。
 
-源文件只有一份，没有需要手工同步的副本。
+---
+
+## 哪些文件必须提交进仓库
+
+| 文件 | 提交？ | 不提交会怎样 |
+| --- | --- | --- |
+| `src/codegen/java/**` | **不要**（已 gitignore） | 正确，它是生成物 |
+| `src/main/resources/assets/brfurniture/block_names.properties` | **建议提交** | 构建**不会**失败，但所有方块名会退回"按 id 自动推导"（`level0_bricks` → "Level0 Bricks" 而不是 "Level0砖墙"） |
+| `src/main/resources/assets/brfurniture/textures/block/block/**` | **必须** | 构建直接失败（下面说明） |
+| `src/generated/resources/**` | **建议提交** | CI 不会失败（它会先跑 `runData` 重新生成），但本地 clone 后直接 `build` 会缺 blockstate / 模型 |
+| `config/brfurniture/*` | **不要** | 那是覆盖用的个人配置，覆盖表和覆盖列表都在这里 |
+
+### 为什么 `block_names.properties` 缺失不会失败
+
+它是**可选输入**。`genBlockList/build.gradle` 里只在文件真的存在时才登记成 task input：
+
+```groovy
+def hasDisplayNameFile = displayNameFile.asFile.isFile()
+...
+if (hasDisplayNameFile) {
+    inputs.file(displayNameFile).withPropertyName('displayNames')
+}
+```
+
+这不是多余的防御：Gradle 会在**配置阶段**就校验 `inputs.file(...)`，文件不存在时直接抛
+
+```
+A problem was found with the configuration of task ':genBlockList:generateDefaultBlockIds'
+  - property 'displayNames' specifies file '...' which doesn't exist.
+```
+
+`onlyIf { }` 拦不住这个错误（它在配置之后才求值），所以必须用"条件登记输入"的写法。
+如果只声明成 `@Optional` 语义但不判存在，一样会挂。
+
+### 贴图目录则是必需的
+
+同理 `inputs.dir(textureDir)`，但这里**故意**不做条件判断：贴图目录是整个生成流程的输入，
+没了它生成不出任何方块，早点用一条明确的错误信息失败（指出是哪个目录不存在）比静默跳过好。
 
 ---
 
@@ -157,12 +194,15 @@ genBlockList/                        独立代码生成模块（不依赖 MC）
   src/main/java/.../genblocklist/
     GenerateDefaultBlockIds.java     命令行入口（Gradle 任务调用）
     BlockIdScanner.java              递归扫描 textures/block/block/**/*.png，相对路径即方块 id
-    BlockNameResolver.java           读展示名表 + 按 id 推导名字
+    BlockNameResolver.java           读展示名表（内置 + config 覆盖，叠加合并）+ 按 id 推导名字
     DefaultBlockIdsWriter.java       写出 DefaultBlockIds.java
 
 src/codegen/
-  block_names.properties             展示名表：<id>=<中文>|<English>
   java/                              生成物 DefaultBlockIds.java（gitignore）
+
+config/brfurniture/                  个人覆盖配置（不提交）
+  blocks.txt                         覆盖方块列表
+  block_names.properties             覆盖展示名（叠加在内置表之上）
 
 src/main/java/yee/pltision/brfurniture/
   BrFurniture.java                   主类：声明覆盖项 → 读配置 → 注册 → 接 datagen
@@ -186,12 +226,14 @@ src/main/java/yee/pltision/brfurniture/
     BlockWarningsScreen.java         方块列表问题警告界面
     BrPlayerNotifier.java            进世界时聊天栏提示一次
 
-src/main/resources/assets/brfurniture/textures/block/
-  block/                             会自动生成三个方块的贴图（递归扫描这棵子树）
-  exhibition_wall/wall_plank.png     展墙模板模型用的贴图
-  normal/ level0/ pipes/ can/        家具与其它内容预留
-src/main/resources/assets/brfurniture/models/block/
-  exhibition_wall*.json              展墙与墙根的模板模型（手写）
+src/main/resources/assets/brfurniture/
+  block_names.properties             内置展示名表：<id>=<中文>|<English>
+  textures/block/
+    block/                           会自动生成三个方块的贴图（递归扫描这棵子树）
+    exhibition_wall/wall_plank.png   展墙模板模型用的贴图
+    normal/ level0/ pipes/ can/      家具与其它内容预留
+  models/block/
+    exhibition_wall*.json            展墙与墙根的模板模型（手写）
 src/generated/resources/             datagen 产物（blockstate / 模型 / 语言文件）
 build/blockTextures/                 贴图镜像目录（构建产物，见上面「贴图放在哪」）
 example_code/                        参考用的旧代码，不参与编译
@@ -235,17 +277,41 @@ putExhibitionWallBrace("level0_wall", CustomBrace::new);
 
 ## 改展示名
 
-编辑 `src/codegen/block_names.properties`：
+展示名表**分两层**，和 `config/brfurniture/blocks.txt` 覆盖方块列表是同一个思路：
+
+| 层 | 路径 | 作用 |
+| --- | --- | --- |
+| 内置默认表 | `src/main/resources/assets/brfurniture/block_names.properties` | 资源文件，会打进 jar；普通改动改这里 |
+| 覆盖表（可选） | `config/brfurniture/block_names.properties` | 存在时在其**之上**改名字 |
+
+格式都是：
 
 ```properties
 level0_wall=Level0墙壁|Level0 Wall
 ```
 
-格式是 `<方块id>=<中文>|<English>`，填的是"基础名"，**不要**带"展墙 / Exhibition Wall"这类变种后缀
+即 `<方块id>=<中文>|<English>`，填的是"基础名"，**不要**带"展墙 / Exhibition Wall"这类变种后缀
 （后缀由 `BlockVariants` 统一拼接，中英数据结构完全一致）。
-没登记的 id 会用 `genBlockList` 按 id 自动推导（`moss_concrete_rubble` → `Mossy Concrete Rubble`）。
+没登记的 id 会按 id 自动推导（`moss_concrete_rubble` → `Mossy Concrete Rubble`）。
 
-改完跑一次构建即可，语言文件由 datagen 重新生成。
+**覆盖是"叠加"而不是"替换"**：覆盖表里只写你想改的那几个 id 就行，其余 id 继续用内置表的名字。
+这样内置表以后新增条目不会被覆盖表悄悄吃掉。例如：
+
+```properties
+# config/brfurniture/block_names.properties
+concrete=水泥|Cement
+```
+
+只会把 `concrete` 改成"水泥 / Cement"，`level0_wall`、`white_concrete` 等仍然用内置表里的中文。
+
+改完跑一次构建（`runData` 或 `build`）即可，语言文件由 datagen 重新生成。
+
+> **构建期，不是运行时**：这两张表都是 `genBlockList` 在构建时读的，
+> 用来生成 `DefaultBlockIds`，datagen 再据此产出 `assets/brfurniture/lang/*.json`。
+> 所以改名字需要重新构建，不像 `blocks.txt` 那样改完直接进游戏就生效。
+>
+> 写文件时注意编码：**UTF-8**。带 BOM（"UTF-8 with BOM"）也能正确读取，
+> 但如果你手动改第一行发现没生效，先看看是不是 BOM 之外还有别的问题。
 
 ---
 

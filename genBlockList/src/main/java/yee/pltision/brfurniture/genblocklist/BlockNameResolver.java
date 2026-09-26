@@ -61,16 +61,42 @@ public final class BlockNameResolver {
         this.explicitNames = explicitNames;
     }
 
+    /** {@return 已经显式登记的名字（不可变） */
+    public Map<String, LocalizedName> explicitNames() {
+        return explicitNames;
+    }
+
     /**
-     * 读取人工维护的展示名表。文件不存在时返回空表（全部靠推导），不抛异常。
+     * 把两张表合并成一张：{@code override} 里登记过的 id 覆盖 {@code base}，
+     * 其余 id 保留 {@code base} 的名字。
      *
-     * <p>格式：{@code <方块id>=<中文>|<English>}，{@code #} 开头是注释。
-     * 缺 {@code |} 或者两半有任意一半为空的行会被忽略并打印出来，让作者自己发现。</p>
+     * <p>这就是 {@code config/brfurniture/block_names.properties} 的语义：
+     * 只想改几个名字时，只需要在那一个文件里写这几个 id，
+     * 不用把内置表整份抄一遍（否则内置表以后新增的条目就悄悄失效了）。</p>
      */
-    public static BlockNameResolver loadDisplayNames(Path file) throws IOException {
+    public static BlockNameResolver merge(BlockNameResolver base, BlockNameResolver override) {
+        if (override.explicitNames.isEmpty()) {
+            return base;
+        }
+        Map<String, LocalizedName> merged = new LinkedHashMap<>(base.explicitNames);
+        merged.putAll(override.explicitNames);
+        return new BlockNameResolver(Map.copyOf(merged));
+    }
+
+    /**
+     * 读取一份展示名表。文件不存在时返回空表（不抛异常）。
+     *
+     * @param file     文件路径，可以是 {@code null}（表示"这次没有这份表"）
+     * @param optional true = 这份表本来就是可选的（例如 config 里的覆盖表），
+     *                 不存在时安静跳过；false = 预期存在的默认表，不存在时打印一句说明
+     */
+    public static BlockNameResolver loadDisplayNames(Path file, boolean optional) throws IOException {
         Map<String, LocalizedName> names = new LinkedHashMap<>();
-        if (!Files.isRegularFile(file)) {
-            System.out.println("[genBlockList] 没找到展示名表 " + file + "，全部按 id 自动推导");
+        // file 可能是 null。Files.isRegularFile(null) 会抛 NPE，所以必须先判空。
+        if (file == null || !Files.isRegularFile(file)) {
+            if (!optional) {
+                System.out.println("[genBlockList] 没找到展示名表 " + file + "，这一份按空表处理");
+            }
             return new BlockNameResolver(Map.of());
         }
 
@@ -80,7 +106,7 @@ public final class BlockNameResolver {
         }
 
         for (String key : properties.stringPropertyNames()) {
-            String id = key.trim();
+            String id = stripBom(key.trim());
             String value = properties.getProperty(key);
             int separator = value.indexOf('|');
             if (separator < 0) {
@@ -96,6 +122,18 @@ public final class BlockNameResolver {
             names.put(id, new LocalizedName(zhCn, enUs));
         }
         return new BlockNameResolver(Map.copyOf(names));
+    }
+
+    /**
+     * 去掉 UTF-8 BOM。
+     *
+     * <p>这个文件是给人手写的，很多 Windows 编辑器会写成 "UTF-8 with BOM"。
+     * {@code Properties.load} 不会去掉 BOM，于是第一行的 key 会变成
+     * {@code \uFEFFconcrete} —— 看着像生效了（"覆盖了 1 个 id"），
+     * 实际查表时永远命不中，名字悄悄退回默认值。所以这里统一剥掉。</p>
+     */
+    private static String stripBom(String text) {
+        return text.startsWith("\uFEFF") ? text.substring(1) : text;
     }
 
     /**
@@ -204,7 +242,7 @@ public final class BlockNameResolver {
     /** 给测试 / 调试用：列出一份 id 的推导结果。 */
     public static void main(String[] args) throws IOException {
         List<String> ids = BlockIdScanner.scan(Path.of(args.length > 0 ? args[0] : "."));
-        BlockNameResolver resolver = loadDisplayNames(Path.of(args.length > 1 ? args[1] : "block_names.properties"));
+        BlockNameResolver resolver = loadDisplayNames(Path.of(args.length > 1 ? args[1] : "block_names.properties"), false);
         for (String id : ids) {
             System.out.println(id + " -> " + resolver.resolve(id));
         }
