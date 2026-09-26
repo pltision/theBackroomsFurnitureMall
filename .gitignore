@@ -4,6 +4,11 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/**/build/
 
+### Gradle 用户目录（本工程专用，见 gradlew-internal.ps1） ###
+# 把 GRADLE_USER_HOME 放在工程内部，构建就不需要写 ~/.gradle，也不用申请工作区外权限。
+# 里面是依赖缓存与 wrapper 发行包，体积很大，绝对不要提交。
+.gradle-home/
+
 ### IntelliJ IDEA ###
 .idea/
 *.iws

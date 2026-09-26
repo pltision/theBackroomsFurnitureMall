@@ -26,6 +26,46 @@ sourceSets.main.resources {
     exclude("src/generated/**/.cache") // datagen cache files
 }
 
+// ---------------------------------------------------------------------------
+// codegen 源集：存放 genBlockList 生成的代码（默认方块列表 DefaultBlockIds）。
+//
+// 为什么不放在 generated 模块：runData 会清空 src/generated，而默认方块列表是 datagen 的
+// 输入，必须在 runData 之前就存在。所以它单独放在 src/codegen，并作为 main 的额外源码根，
+// 这样 IDE 和 gradlew 都能看到它。
+// ---------------------------------------------------------------------------
+sourceSets {
+    codegen {
+        java.srcDir 'src/codegen/java'
+    }
+}
+
+sourceSets.main {
+    // main 要能 import codegen 里的 DefaultBlockIds。
+    compileClasspath += sourceSets.codegen.output
+}
+
+configurations {
+    codegenImplementation.extendsFrom implementation
+    codegenCompileOnly.extendsFrom compileOnly
+}
+
+// 默认列表是 main 的编译输入，所以任何一个 JavaCompile 之前都必须先生成它。
+// 这里刻意用任务路径而不是 project(':genBlockList').tasks：根项目的 build.gradle 会先于
+// 子模块求值，直接取子模块的任务会报 "Task not found"；按路径声明依赖则是在任务图阶段解析的。
+tasks.named('compileCodegenJava') {
+    dependsOn ':genBlockList:generateDefaultBlockIds'
+}
+tasks.named('compileJava') {
+    dependsOn ':genBlockList:generateDefaultBlockIds', 'compileCodegenJava'
+}
+
+// jar / 发布产物必须带上 codegen 的类，否则打包后的模组会在运行时
+// 报 NoClassDefFoundError: yee/pltision/brfurniture/codegen/DefaultBlockIds。
+// （开发环境之所以正常，是因为 runClient/runData 直接把 build/classes/java/codegen 挂进了模组 classpath。）
+tasks.named('jar') {
+    from sourceSets.codegen.output
+}
+
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
 }
@@ -36,6 +76,16 @@ base {
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// genBlockList 是纯 Java 模块，用同一套工具链与编码设置，避免中文字符串在金标里乱码。
+subprojects {
+    plugins.withId('java') {
+        java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+}
 
 neoForge {
     // Specify the version of NeoForge to use.
@@ -103,6 +153,9 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            // codegen 里是 genBlockList 生成的 DefaultBlockIds。它必须一起进模组的
+            // classpath，否则 runClient / runData 会报 NoClassDefFoundError。
+            sourceSet(sourceSets.codegen)
         }
     }
 }
@@ -188,3 +241,4 @@ idea {
         downloadJavadoc = true
     }
 }
+
