@@ -45,6 +45,9 @@ jobs:
       - name: Run datagen
         run: ./gradlew runData --no-daemon --stacktrace
 
+      - name: Build
+        run: ./gradlew build --no-daemon --stacktrace
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
