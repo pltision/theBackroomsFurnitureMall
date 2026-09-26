@@ -52,7 +52,7 @@ public final class GenerateDefaultBlockIds {
             }
         }
 
-        String sourceDescription = "assets/brfurniture/textures/block/*.png";
+        String sourceDescription = "assets/brfurniture/textures/block/block/*.png";
         Path written = new DefaultBlockIdsWriter(arguments.packageName, arguments.className)
                 .write(arguments.outputDir, ids, names, sourceDescription);
         System.out.println("[genBlockList] 完成: " + written);
