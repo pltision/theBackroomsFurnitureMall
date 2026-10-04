@@ -1,0 +1,4 @@
+jdk:
+  - openjdk21
+install:
+  - sh gradlew build -x test publishToMavenLocal --no-daemon -PreleaseVersion=$VERSION
