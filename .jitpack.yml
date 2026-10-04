@@ -1,4 +1,7 @@
 jdk:
   - openjdk21
+before_install:
+  - sh gradlew :genBlockList:generateDefaultBlockIds
+  - sh gradlew runData --no-daemon --stacktrace
 install:
   - sh gradlew build -x test publishToMavenLocal --no-daemon -PreleaseVersion=$VERSION
