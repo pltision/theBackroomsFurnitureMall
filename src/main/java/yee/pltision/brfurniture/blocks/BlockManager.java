@@ -40,13 +40,6 @@ public final class BlockManager {
     /** id 长度上限，超了就跳过：Minecraft 的路径本身允许更长，但那种名字一定是写错了。 */
     private static final int MAX_ID_LENGTH = 200;
 
-    /** 默认属性：和约定的一样，木质、踩上去是音符盒的贝斯音。 */
-    private static final Function<BlockBehaviour.Properties, BlockBehaviour.Properties> DEFAULT_PROPERTIES =
-            properties -> properties
-                    .instrument(NoteBlockInstrument.BASS)
-                    .strength(2.0F, 3.0F)
-                    .sound(SoundType.WOOD);
-
     private final Map<String, Function<BlockBehaviour.Properties, ? extends Block>> solidFactories = new LinkedHashMap<>();
     private final Map<String, BlockBehaviour.Properties> solidProperties = new LinkedHashMap<>();
     private final Map<String, Function<BlockBehaviour.Properties, ? extends Block>> exhibitionWallFactories = new LinkedHashMap<>();
@@ -304,10 +297,13 @@ public final class BlockManager {
      * 不开这个会让相邻面被错误剔除。属性每次现造一份，避免多个方块共享同一个可变对象。</p>
      */
     private static BlockBehaviour.Properties defaultProperties(BlockVariants variant) {
-        BlockBehaviour.Properties properties = DEFAULT_PROPERTIES.apply(BlockBehaviour.Properties.of());
-        if (variant != BlockVariants.SOLID) {
-            properties.noOcclusion();
-        }
+        BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
+                        .instrument(NoteBlockInstrument.BASS)
+                        .strength(2.0F, 3.0F)
+                        .sound(SoundType.WOOD);
+//        if (variant != BlockVariants.SOLID) {
+//            properties.noOcclusion();
+//        }
         return properties;
     }
 

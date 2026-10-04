@@ -74,9 +74,13 @@ public class ExhibitionWall extends HorizontalDirectionalBlock {
         return SHAPES[shapeIndex(state)];
     }
 
-    @Override
-    protected VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return SHAPES[shapeIndex(state)];
+//    @Override
+//    protected VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+//        return SHAPES[shapeIndex(state)];
+//    }
+
+    protected boolean useShapeForLightOcclusion(BlockState state) {
+        return true;
     }
 
     @Override
